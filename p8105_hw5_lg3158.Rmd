@@ -7,6 +7,55 @@ output: github_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(rvest)
+library(httr)
+library(stringr)
 ```
 
 ## Problem 1
+```{r}
+q1_df = 
+  read_csv(url("https://github.com/washingtonpost/data-homicides/raw/master/homicide-data.csv")) %>%
+  mutate(city_state = paste(city, state, sep = ","))
+```
+
+- The data have `r nrow(q1_df)` observations and `r ncol(q1_df)` variables (`r ls(q1_df)`) after create the `city_state` variable.
+- Summarize total homicide and unsolved homicide
+  - create a data summarize total homicide number by city
+  - create a data only including the unsolved homicide, and summarize the total number by city
+  - combine the 2 data by city
+  
+```{r}
+q1_tot = q1_df %>%
+  group_by(city_state) %>%
+  summarise(total_homicide = n())
+
+q1_unsolved = q1_df %>%
+  filter(disposition %in% c("Closed without arrest","Open/no arrest")) %>%
+  group_by(city_state) %>%
+  summarise(unsolved_homicide = n())
+
+q1_summary = left_join(q1_tot, q1_unsolved, by = "city_state")
+
+knitr::kable(q1_summary)
+```
+
+- `prop.test`
+  - Baltimore result
+```{r}
+q1_balt =
+  prop.test(pull(subset(q1_summary, city_state == "Baltimore,MD"),unsolved_homicide), 
+            pull(subset(q1_summary, city_state == "Baltimore,MD"),total_homicide)) %>%
+  broom::tidy() %>%
+  mutate(city_state = "Baltimore,MD") %>%
+  select(city_state, estimate, conf.low, conf.high)
+knitr::kable(q1_balt)
+```
+
+  - all other cities result
+```{r}
+
+```
+
+
