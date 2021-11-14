@@ -29,12 +29,12 @@ q1_df =
 ```{r}
 q1_tot = q1_df %>%
   group_by(city_state) %>%
-  summarise(total_homicide = n())
+  summarise(total = n())
 
 q1_unsolved = q1_df %>%
   filter(disposition %in% c("Closed without arrest","Open/no arrest")) %>%
   group_by(city_state) %>%
-  summarise(unsolved_homicide = n())
+  summarise(unsolved = n())
 
 q1_summary = left_join(q1_tot, q1_unsolved, by = "city_state")
 
@@ -45,8 +45,8 @@ knitr::kable(q1_summary)
   - Baltimore result
 ```{r}
 q1_balt =
-  prop.test(pull(subset(q1_summary, city_state == "Baltimore,MD"),unsolved_homicide), 
-            pull(subset(q1_summary, city_state == "Baltimore,MD"),total_homicide)) %>%
+  prop.test(pull(subset(q1_summary, city_state == "Baltimore,MD"),unsolved), 
+            pull(subset(q1_summary, city_state == "Baltimore,MD"),total)) %>%
   broom::tidy() %>%
   mutate(city_state = "Baltimore,MD") %>%
   select(city_state, estimate, conf.low, conf.high)
@@ -55,7 +55,45 @@ knitr::kable(q1_balt)
 
   - all other cities result
 ```{r}
+fx_proc = function(dat)
+  {
+  if (is.na(dat$unsolved))
+  {
+    return(c(NA, NA, NA))
+  }
+  
+  prop = prop.test(dat$unsolved, dat$total) %>%
+    broom::tidy() %>%
+    select(estimate, conf.low, conf.high)
+  return(prop)
+}
 
+q1_list = 
+  nest(q1_summary, data = total:unsolved)
+
+q1_list_result = q1_list %>%
+mutate(result = map(q1_list$data, fx_proc)) %>%
+  unnest(cols = c(data, result)) %>%
+  select(-result)
+
+knitr::kable(q1_list_result)
 ```
+
+  - plot for unsolved homicide cases
+```{r}
+q1_plot = q1_list_result %>%
+  ggplot(aes(x = city_state, y = estimate*100)) +
+    geom_bar(stat = "identity") +
+    geom_errorbar(aes(ymin = conf.low*100, ymax = conf.high*100), stat = "identity") +
+    labs(title = "Unsolved homicide proportions",
+         x = "City, state",
+         y = "Unsolved case(%)") +
+  coord_flip()
+
+q1_plot
+```
+
+## Problem 2
+
 
 
