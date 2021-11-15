@@ -25,7 +25,7 @@ q1_df =
   - create a data summarize total homicide number by city
   - create a data only including the unsolved homicide, and summarize the total number by city
   - combine the 2 data by city
-  
+  - show the first 5 rows
 ```{r}
 q1_tot = q1_df %>%
   group_by(city_state) %>%
@@ -38,7 +38,7 @@ q1_unsolved = q1_df %>%
 
 q1_summary = left_join(q1_tot, q1_unsolved, by = "city_state")
 
-knitr::kable(q1_summary)
+knitr::kable(q1_summary[1:5, ])
 ```
 
 - `prop.test`
@@ -53,7 +53,7 @@ q1_balt =
 knitr::kable(q1_balt)
 ```
 
-  - all other cities result
+  - all other cities result, show the first 5 rows
 ```{r}
 fx_proc = function(dat)
   {
@@ -76,7 +76,7 @@ mutate(result = map(q1_list$data, fx_proc)) %>%
   unnest(cols = c(data, result)) %>%
   select(-result)
 
-knitr::kable(q1_list_result)
+knitr::kable(q1_list_result[1:5, ])
 ```
 
   - plot for unsolved homicide cases
@@ -95,5 +95,100 @@ q1_plot
 
 ## Problem 2
 
+- download and unzip the zip file
+- construct a dataframe which contains
+  - all the file name (`filename`)
+  - from `filename`, extract experimental arm or control arm (`arm`) and subject id (`ID`)
+  - read in data (a list named as `data`)
+    - before read in data, create a function named `readin` to load the csv data
+  - unnest the list `data`
+  - make `arm` values more readable
+  - drop `filename`
+  - make the columns `week_01`-`week_08` into 2 columns: `fu_time` and `value`
+- show the first 10 rows
+```{r}
+download.file(url = "https://www.p8105.com/data/hw5_data.zip", destfile = "./data/hw5_data.zip")
+unzip("./data/hw5_data.zip", exdir = ".")
+
+
+readin = function(indata){
+  data = read_csv(file = paste("./data/",indata, sep = ""))
+  return(data)
+}
+
+q2_files = tibble(
+  filename = list.files(path = "./data", pattern = "*.csv"),
+  arm = substring(filename, 1,3),
+  ID = substring(filename, 1,6),
+  data = map(filename,readin)
+  ) %>%
+  unnest(cols = data) %>%
+  mutate(arm = if_else(arm == "con", "control arm", "experimental arm")) %>%
+  select(-filename) %>%
+  pivot_longer(cols = starts_with("week_"), names_to = "fu_time", names_prefix = "week_", values_to = "value") %>%
+  mutate(fu_time = as.numeric(fu_time))
+
+knitr::kable(q2_files[1:10, ])
+```
+
+- the spaghetti plot
+```{r}
+q2_plot = q2_files %>%
+  ggplot(aes(x = fu_time, y = value, color = arm, group = ID)) +
+    geom_line(alpha = 0.5, size = 2) +
+    geom_smooth(aes(group = arm), se = F, size = 4) +
+    labs(x = "follow-up time (week)") +
+    theme_minimal()
+q2_plot
+```
+
+  - from the plot, we can see that the baseline values between the 2 arms are similar, with different trends during the follow-up. The control arm almost kept constant while the experimental arm increased.
+  
+## Problem 3
+
+- create a function taking 1 vector (list) as an argument
+  - missing value imputation
+- using map to do the missing value imputation
+  - print the first 10 rows of the original data
+  - transform the original data into list, using `nest`
+  - using `map`
+- transform the result list into a dataframe
+  - print the first 10 rows
+
+```{r}
+set.seed(10)
+
+iris_with_missing = iris %>% 
+  map_df(~replace(.x, sample(1:150, 20), NA)) %>%
+  mutate(Species = as.character(Species))
+
+knitr::kable(iris_with_missing[1:10, ])
+
+iris_list = iris_with_missing %>%
+  nest(data = everything())
+ 
+ fillin = function(var) {
+  if (is.numeric(var)) {
+    for (i in 1:150) {
+    var[[i]] = if_else(is.na(var[[i]]), mean(var, na.rm = T), var[[i]])
+    }
+  }
+  
+  if (is.character(var)) {
+    for (i in 1:150) {
+      var[[i]] = if_else(is.na(var[[i]]),"virginica", var[[i]])
+    }
+  }
+  return(var)
+ }
+ 
+iris_fill = tibble(
+  var = c("Sepal.Length", "Sepal.Width", "Petal.Length","Petal.Width","Species"),
+  fill = map(iris_list$data[[1]], fillin)) %>%
+  pivot_wider(names_from = var, values_from = fill) %>%
+  unnest( cols = c("Sepal.Length", "Sepal.Width", "Petal.Length","Petal.Width","Species"))
+
+knitr::kable(iris_fill[1:10, ])
+```
 
 
